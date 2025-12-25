@@ -147,10 +147,17 @@ export function useHostSession(): UseHostSessionReturn {
     const handleBuzzReceived = (entry: BuzzEntry) => {
       setSession(prev => {
         if (!prev) return null;
+        // Check if this buzz already exists (avoid duplicates)
+        const exists = prev.round.buzzQueue.some(b => b.playerId === entry.playerId);
+        if (exists) return prev;
+        
         return {
           ...prev,
           round: {
             ...prev.round,
+            // First buzz locks the round
+            status: prev.round.buzzQueue.length === 0 ? 'locked' : prev.round.status,
+            activePlayerId: prev.round.buzzQueue.length === 0 ? entry.playerId : prev.round.activePlayerId,
             buzzQueue: [...prev.round.buzzQueue, entry],
           },
         };
@@ -167,6 +174,7 @@ export function useHostSession(): UseHostSessionReturn {
             status: 'locked',
             activePlayerId,
             buzzQueue: queue,
+            lockedAt: Date.now(),
           },
         };
       });
@@ -175,12 +183,16 @@ export function useHostSession(): UseHostSessionReturn {
     const handlePlayerPassed = ({ passedPlayerId, newActivePlayerId }: { passedPlayerId: string; newActivePlayerId: string | null }) => {
       setSession(prev => {
         if (!prev) return null;
+        // Remove passed player from queue and update active player
+        const updatedQueue = prev.round.buzzQueue.filter(b => b.playerId !== passedPlayerId);
         return {
           ...prev,
           round: {
             ...prev.round,
             activePlayerId: newActivePlayerId,
-            buzzQueue: prev.round.buzzQueue.filter(b => b.playerId !== passedPlayerId),
+            buzzQueue: updatedQueue,
+            // If no one left, go back to waiting
+            status: newActivePlayerId ? 'locked' : 'waiting',
           },
         };
       });
@@ -404,10 +416,17 @@ export function usePlayerSession(): UsePlayerSessionReturn {
     const handleBuzzReceived = (entry: BuzzEntry) => {
       setSession(prev => {
         if (!prev) return null;
+        // Check if this buzz already exists (avoid duplicates)
+        const exists = prev.round.buzzQueue.some(b => b.playerId === entry.playerId);
+        if (exists) return prev;
+        
         return {
           ...prev,
           round: {
             ...prev.round,
+            // First buzz locks the round
+            status: prev.round.buzzQueue.length === 0 ? 'locked' : prev.round.status,
+            activePlayerId: prev.round.buzzQueue.length === 0 ? entry.playerId : prev.round.activePlayerId,
             buzzQueue: [...prev.round.buzzQueue, entry],
           },
         };
@@ -424,19 +443,25 @@ export function usePlayerSession(): UsePlayerSessionReturn {
             status: 'locked',
             activePlayerId,
             buzzQueue: queue,
+            lockedAt: Date.now(),
           },
         };
       });
     };
 
-    const handlePlayerPassed = ({ newActivePlayerId }: { passedPlayerId: string; newActivePlayerId: string | null }) => {
+    const handlePlayerPassed = ({ passedPlayerId, newActivePlayerId }: { passedPlayerId: string; newActivePlayerId: string | null }) => {
       setSession(prev => {
         if (!prev) return null;
+        // Remove passed player from queue and update active player
+        const updatedQueue = prev.round.buzzQueue.filter(b => b.playerId !== passedPlayerId);
         return {
           ...prev,
           round: {
             ...prev.round,
             activePlayerId: newActivePlayerId,
+            buzzQueue: updatedQueue,
+            // If no one left, reset status
+            status: newActivePlayerId ? 'locked' : 'waiting',
           },
         };
       });

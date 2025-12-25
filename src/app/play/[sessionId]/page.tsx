@@ -55,7 +55,7 @@ export default function PlayerPage() {
   const handleBuzz = useCallback(() => {
     if (!session || !playerId) return;
     
-    const status = getPlayerStatus(playerId, session.round);
+    const status = getPlayerStatus(playerId, session.round, session.settings.allowLateBuzzes);
     if (status !== 'ready') return;
 
     // Haptic feedback
@@ -216,7 +216,7 @@ export default function PlayerPage() {
   }
 
   // Get current player status
-  const playerStatus = getPlayerStatus(playerId, session.round);
+  const playerStatus = getPlayerStatus(playerId, session.round, session.settings.allowLateBuzzes);
   const currentPlayer = session.players.find(p => p.id === playerId);
   const currentTeam = currentPlayer?.teamId 
     ? session.teams.find(t => t.id === currentPlayer.teamId) 
@@ -224,6 +224,7 @@ export default function PlayerPage() {
   
   const queuePosition = session.round.buzzQueue.findIndex(b => b.playerId === playerId);
   const isActive = session.round.activePlayerId === playerId;
+  const isInQueue = queuePosition >= 0;
 
   return (
     <main className="min-h-screen bg-buzz-darker flex flex-col">
@@ -254,8 +255,8 @@ export default function PlayerPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <AnimatePresence mode="wait">
-          {/* Waiting state */}
-          {playerStatus === 'waiting' && (
+          {/* Waiting state - round not started or ended */}
+          {playerStatus === 'waiting' && !isInQueue && !isActive && (
             <motion.div
               key="waiting"
               initial={{ opacity: 0 }}
@@ -273,8 +274,8 @@ export default function PlayerPage() {
             </motion.div>
           )}
 
-          {/* Ready to buzz */}
-          {playerStatus === 'ready' && (
+          {/* Ready to buzz - can still buzz */}
+          {playerStatus === 'ready' && !isInQueue && !isActive && (
             <motion.div
               key="ready"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -290,8 +291,8 @@ export default function PlayerPage() {
             </motion.div>
           )}
 
-          {/* Active (being evaluated) */}
-          {playerStatus === 'active' || isActive && (
+          {/* Active player - being evaluated by host */}
+          {isActive && (
             <motion.div
               key="active"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -318,37 +319,8 @@ export default function PlayerPage() {
             </motion.div>
           )}
 
-          {/* Queued */}
-          {playerStatus === 'queued' && queuePosition > 0 && (
-            <motion.div
-              key="queued"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="text-center"
-            >
-              <div 
-                className="w-32 h-32 mx-auto mb-6 rounded-full flex items-center justify-center font-display font-extrabold text-5xl text-white"
-                style={{
-                  backgroundColor: currentTeam?.color || '#FF9500',
-                }}
-              >
-                #{queuePosition + 1}
-              </div>
-              <h2 className="font-display font-bold text-2xl text-white mb-2">
-                You&apos;re in Queue
-              </h2>
-              <p className="text-white/60">
-                {queuePosition === 0 
-                  ? "You're next!" 
-                  : `${queuePosition} player${queuePosition > 1 ? 's' : ''} ahead of you`
-                }
-              </p>
-            </motion.div>
-          )}
-
-          {/* Already buzzed (first in queue) */}
-          {playerStatus === 'queued' && queuePosition === 0 && (
+          {/* First in queue (buzzed first, now waiting) */}
+          {isInQueue && queuePosition === 0 && !isActive && (
             <motion.div
               key="first"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -371,6 +343,35 @@ export default function PlayerPage() {
               </h2>
               <p className="text-white/60">
                 Waiting for host...
+              </p>
+            </motion.div>
+          )}
+
+          {/* Queued - in line behind others */}
+          {isInQueue && queuePosition > 0 && !isActive && (
+            <motion.div
+              key="queued"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-center"
+            >
+              <div 
+                className="w-32 h-32 mx-auto mb-6 rounded-full flex items-center justify-center font-display font-extrabold text-5xl text-white"
+                style={{
+                  backgroundColor: currentTeam?.color || '#FF9500',
+                }}
+              >
+                #{queuePosition + 1}
+              </div>
+              <h2 className="font-display font-bold text-2xl text-white mb-2">
+                You&apos;re in Queue
+              </h2>
+              <p className="text-white/60">
+                {queuePosition === 1 
+                  ? "You're next!" 
+                  : `${queuePosition} player${queuePosition > 1 ? 's' : ''} ahead of you`
+                }
               </p>
             </motion.div>
           )}

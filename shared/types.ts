@@ -202,26 +202,36 @@ export type PlayerStatus =
 
 export function getPlayerStatus(
   playerId: string,
-  round: RoundState
+  round: RoundState,
+  allowLateBuzzes: boolean = true
 ): PlayerStatus {
+  // Round not active
   if (round.status === 'waiting' || round.status === 'ended') {
     return 'waiting';
   }
   
+  // Player is currently being evaluated
   if (round.activePlayerId === playerId) {
     return 'active';
   }
   
+  // Player is in the queue
   const inQueue = round.buzzQueue.find(b => b.playerId === playerId);
-  
   if (inQueue) {
     return 'queued';
   }
   
+  // Round is open - player can buzz
   if (round.status === 'open') {
     return 'ready';
   }
   
+  // Round is locked but late buzzes allowed - player can still buzz
+  if (round.status === 'locked' && allowLateBuzzes) {
+    return 'ready';
+  }
+  
+  // Round is locked and player missed their chance
   return 'waiting';
 }
 
